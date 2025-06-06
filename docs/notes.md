@@ -1,7 +1,8 @@
 # Notes
 
 - Consider using an initial router that determines whether or not the request pertains to task management.
-    - If True: pass the request to a tool calling model that uses a SemanticSimilarityExampleSelector.
+    - If True: pass the request to a tool calling model that uses a SemanticSimilarityExampleSelector (from langchain).
+        - This allows each llm call to only use (1 or 2 tools)
     - If False: concisely explain to the user why the request is invalid.
 
 ## User Inputs

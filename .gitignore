@@ -1,4 +1,8 @@
 .venv/
 .vscode/
 data/
+logs/*
 models/
+.env
+pyrefly.toml
+__pycache__/

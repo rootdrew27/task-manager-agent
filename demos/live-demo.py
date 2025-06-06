@@ -21,10 +21,10 @@ if __name__ == "__main__":
             data = stream.read(CHUNK, exception_on_overflow=False)
             # assume that audio data is in a 16-bit PCM format
             audio_chunk = np.frombuffer(buffer=data, dtype=np.int16).astype(np.float32) / 32768.0
-            BUFFER.extend(audio_chunk)
+            BUFFER.append(audio_chunk)
 
             if len(BUFFER) >= BUFFER_DURATION * RATE:
-                segments, _ = model.transcribe(np.array(BUFFER), language="en", beam_size=5, vad_filter=True)
+                segments, _ = model.transcribe(np.array(BUFFER).flatten(), language="en", beam_size=5, vad_filter=True)
                 for seg in segments:
                     print(f"> {seg.text}", flush=True)
                 BUFFER.clear()
