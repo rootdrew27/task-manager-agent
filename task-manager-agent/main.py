@@ -10,10 +10,11 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import QThread
 from task_manager_agent import TaskManagerAgent
 from capture import Capture
+from capture_sd import CaptureSD
 from transcriptor import Transcriptor
 from dotenv import load_dotenv
 
-INPUT_DEVICE_INDEX = 3
+INPUT_DEVICE_INDEX = 1
 SAMPLE_RATE = 16000
 DATA_SIZE = 2  # bytes (int16)
 
@@ -63,7 +64,7 @@ class MainWindow(QMainWindow):
         # ## Audio Capture
         self.capture_thread = QThread()
         self.capture_thread.setObjectName("Capture Thread")
-        self.capture_worker = Capture(
+        self.capture_worker = CaptureSD(
             input_device_index=INPUT_DEVICE_INDEX, sample_rate=SAMPLE_RATE, chunk_ms=20
         )
         self.capture_worker.moveToThread(self.capture_thread)
