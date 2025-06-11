@@ -4,9 +4,9 @@ from PySide6.QtCore import QObject, Signal, Slot
 import webrtcvad
 import logging
 
-logging.basicConfig(filename='./logs/logs.txt')
-whisper_logger = logging.getLogger("faster_whisper")
-whisper_logger.setLevel(logging.DEBUG)
+# logging.basicConfig(filename='./logs/logs.txt')
+# whisper_logger = logging.getLogger("faster_whisper")
+# whisper_logger.setLevel(logging.DEBUG)
 class Transcriptor(QObject):
     # start_transcriptor = Signal()
     transcript_ready = Signal(str)

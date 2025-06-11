@@ -1,0 +1,19 @@
+[project]
+name = "task-manager-agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "faster-whisper>=1.1.1",
+    "langchain>=0.3.25",
+    "langchain-ollama>=0.3.3",
+    "langgraph>=0.4.8",
+    "numpy>=2.3.0",
+    "pyaudio>=0.2.14",
+    "pydantic>=2.11.5",
+    "pyside6>=6.9.1",
+    "python-dotenv>=1.1.0",
+    "sounddevice>=0.5.2",
+    "webrtcvad>=2.0.10",
+]

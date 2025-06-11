@@ -62,21 +62,28 @@ def encode(task_names: str | list[str]) -> npt.NDArray:
 class State(TypedDict):
     messages: Annotated[list, add_messages]
     user_input: str
+    is_valid_request: bool
 
 
-router_agent_prompt = ChatPromptTemplate.from_messages(
+routing_agent_prompt = ChatPromptTemplate.from_messages(
     [
         (
             "system",
             "You are a routing system that determines what type of request a user makes and the requirements needed to complete the request."
-            "You have access to the following tools: create_task, edit_task, delete_task."  # edit_tool
-            # "If the user requests to get, see, or view one or more tasks, you will use get_tool. An example of a user request that meets this criteria is 'What are my tasks'."
-            # "If the user requests to modify, change, or edit one or more tasks, you will use the edit tool. An example request that meets this criteria is 'Change my \"clean room\" task to \"clean bathroom\"'."
-            "If the user requests to create, make, or add one or more tasks, you will use the create_task tool. Example requests that meet this critera include: 'Make a Clean Room task.' and 'Create the following tasks: Change oil, Go for a run, and Check email.'."
+            "You have access to the following tools: create_task, edit_task, delete_task."
+            # CREATE TASK
+            "If the user requests to create, make, or add a task, you will use the create_task tool. Example requests that meet this critera include: 'Make a Clean Room task.' and 'Add a new task called do homework'."
+            # CREATE TASK
+            "If the user requests to create, make, or add several tasks (i.e. more than one) then you use the create_tasks tool. Examples of requests are: 'Create the following tasks: Change oil, Go for a run, and Check email.' and 'Add a workout task and a clean bathroom task.'."
+            # EDIT TASK
             "If the user requests to edit, modify, or change one of their tasks, you will use the edit_task tool. Examples include: 'Mark my do homework task as complete' and 'Change the name of my clean room task to clean bathroom.'."
+            # EDIT TASKS
             "If the user requests to edit, modify, or change multiple tasks you will use the edit_tasks tool. Examples include: 'Mark my mow the lawn and do the laundry tasks as complete.' and 'Change the name of my get groceries task to get fruits and vegetables, and change the name of my do homework task to do abstract algebra homework.'."
+            # DELETE TASK
             "If the user requests to delete, remove, or cancel one of their tasks, you will use the delete_task tool. Examples of requests that meet this criteria include: 'Delete my change oil task.', 'Discard the following task, replace lightbuld.'."
+            # DELETE TASKS
             "If the user request to delete, remove, cancel, etc. several of their tasks you will use the delete_tasks tool. An example that meet this criteria is: 'Delete the change baby's diapers task and the do calculus homework task.'."
+            # INVALID
             "If the user requests anything unrelated to their tasks you will NOT use a tool. An example request that meets this criteria is 'Why is the sky blue?'."
             "The user's current tasks are: {tasks}.",
         ),
@@ -187,7 +194,7 @@ class TaskManager:
                             ],
                             "user_input": human_response,
                         },
-                        goto="router_agent",
+                        goto="routing_agent",
                     )
             else:
                 name = names[most_similar_idx]
@@ -245,7 +252,7 @@ class TaskManager:
                             ],
                             "user_input": human_response,
                         },
-                        goto="router_agent",
+                        goto="routing_agent",
                     )
             name = names[most_similar_idx]
             self.lut.pop(name)
@@ -308,7 +315,7 @@ class TaskManager:
                             ],
                             "user_input": human_response,
                         },
-                        goto="router_agent",
+                        goto="routing_agent",
                     )
 
 
@@ -325,7 +332,7 @@ def create_task(task_name: str, tool_call_id: Annotated[str, InjectedToolCallId]
     """Create (i.e. add, or make) a task.
 
     Args:
-        task_names (str): The name of the task to create.
+        task_name (str): The name of the task to create.
     """
     task_manager.create_task(task_name, tool_call_id=tool_call_id)
     return f"The {task_name} task was created."
@@ -382,20 +389,31 @@ def delete_tasks(
 
 
 @tool("edit_task", parse_docstring=True)
-def edit(
+def edit_task(
     task_name: str,
     tool_call_id: Annotated[str, InjectedToolCallId],
     new_name: str | None = None,
     is_complete: bool | None = None,
 ):
+    """Edit (i.e. modify, or change) a task.
+
+    Args:
+        task_name (str): The name of the task to edit.
+        tool_call_id (Annotated[str, InjectedToolCallId]):
+        new_name (str | None, optional): Optional. The new name for the task. Defaults to None.
+        is_complete (bool | None, optional): Optional. The new completetion status of the task. Defaults to None.
+
+    Returns:
+        _type_: _description_
+    """
     task_manager.edit_task(task_name, tool_call_id, new_name, is_complete)
     return f"The {task_name} task was edited."
 
 
-tools = [delete_task, delete_tasks, create_task]
+tools = [create_task, create_tasks, edit_task, delete_task, delete_tasks]
 router_llm = ChatOllama(
     base_url="http://localhost:11434",
-    model="llama3-groq-tool-use:8b-q3_K_M",  # "llama3-groq-tool-use:8b",
+    model="llama3-groq-tool-use:8b-q3_K_S",  # "llama3-groq-tool-use:8b-q3_K_M",  # "llama3-groq-tool-use:8b", #
     temperature=0,
     keep_alive="30m",
 ).bind_tools(tools)
@@ -421,10 +439,26 @@ validator_llm = ChatOllama(
     keep_alive="30m",
 )
 
-class Validation(BaseModel):
-    is_valid_request: bool = Field(default=..., description="A boolean value indicating if the user's input is valid and relevant to task management.")
 
-validator_chain: Runnable = validator_template | validator_llm.with_structured_output(Validation)
+class Validation(BaseModel):
+    is_valid_request: bool = Field(
+        default=...,
+        description="A boolean value indicating if the user's input is valid and relevant to task management.",
+    )
+
+
+def val_router(state: State):
+    if is_valid_request := state.get("is_valid_request", None) is None:
+        raise ValueError("Messages required here.")
+    elif is_valid_request is True:
+        return "continue"
+    else:
+        return "responder"
+
+
+validator_chain: Runnable = validator_template | validator_llm.with_structured_output(
+    Validation
+)
 
 
 def tool_router(state: State):
@@ -445,7 +479,7 @@ def responder(state: State):
     if messages := state.get("messages", []):
         message = messages[-1]
     else:
-        raise ValueError("The messages attribute is required here.")
+        return {"messages": ["Invalid Request"]}
     if isinstance(message, ToolMessage):
         tool_name = message.name
         assert message.content != "null"
@@ -461,17 +495,19 @@ def responder(state: State):
 
 def routing_agent(state: State):
     assert isinstance(state, dict), (
-        "Input to router_agent node must be of the State class (i.e. a typed dict)"
+        "Input to routing_agent node must be of the State class (i.e. a typed dict)"
     )
-    prompt = router_agent_prompt.invoke(
+    prompt = routing_agent_prompt.invoke(
         {"user_input": state["user_input"], "tasks": task_manager.display_tasks()}
     )
     return {"messages": [router_llm.invoke(prompt)]}
 
+
 def validation_agent(state: State):
     user_input = state["user_input"]
     assert isinstance(user_input, str) and len(user_input) > 0
-    return {"messages": [validator_chain.invoke(user_input)]}
+    return {"is_valid_request": validator_chain.invoke(user_input).is_valid_request}
+
 
 graph_builder = StateGraph(State)
 
@@ -481,9 +517,12 @@ graph_builder.add_node("tools", ToolNode(tools))
 graph_builder.add_node("responder", responder)
 # graph_builder.add_node("invalid_request", invalid_request)
 
-graph_builder.add_edge(START, "router_agent")
+graph_builder.add_edge(START, "validation_agent")
 graph_builder.add_conditional_edges(
-    "router_agent", tool_router, {"tools": "tools", "responder": "responder"}
+    "validation_agent", val_router, {"continue": "routing_agent", "responder": "responder"}
+)
+graph_builder.add_conditional_edges(
+    "routing_agent", tool_router, {"tools": "tools", "responder": "responder"}
 )
 graph_builder.add_edge("tools", "responder")
 graph_builder.add_edge("responder", END)
